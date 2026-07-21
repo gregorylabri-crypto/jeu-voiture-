@@ -75,6 +75,27 @@ kbd{background:#182347;border:1px solid #2c3d77;border-bottom-width:2px;border-r
 .bar i{position:absolute;inset:0;transform-origin:left;border-radius:5px;background:linear-gradient(90deg,var(--fr),var(--cyan));transition:transform .35s cubic-bezier(.2,.9,.3,1.2)}
 .bar.red i{background:linear-gradient(90deg,var(--es),var(--es2))}
 
+/* ---------- barre d'action fixe (sélection pilote & circuit) ---------- */
+#s-select,#s-circuit{justify-content:flex-start;align-items:stretch;padding:0}
+#s-select>.scroller,#s-circuit>.scroller{max-width:none;flex:1 1 auto;min-height:0;max-height:none;align-items:center;padding:max(12px,env(safe-area-inset-top)) 12px 10px;-webkit-overflow-scrolling:touch}
+#s-select>.scroller>*,#s-circuit>.scroller>*{width:100%;max-width:980px}
+.seldock{flex:none;width:100%;display:flex;flex-direction:column;gap:9px;align-items:center;z-index:2;
+  padding:11px 12px calc(12px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(7,11,24,0),rgba(7,11,24,.86) 42%,rgba(6,9,20,.97));
+  backdrop-filter:blur(13px);border-top:1px solid var(--line);box-shadow:0 -14px 34px rgba(0,0,0,.45)}
+.seldock>*{width:100%;max-width:980px}
+.seldock .btnrow{display:flex;gap:10px;flex-wrap:nowrap}
+.seldock #b-continue,.seldock #b-go{flex:1 1 auto;min-width:0}
+.seldock .btn.ghost{flex:0 0 auto;min-width:0}
+.seldock #sel-stats{padding:9px 13px;gap:5px 18px}
+@media (max-width:640px){
+  .seldock #sel-stats .who{font-size:15px}
+  .seldock #sel-stats .bars{min-width:150px}
+  .seldock #sel-stats .bars label{font-size:9px;letter-spacing:1px}
+  .seldock #sel-stats .bar{height:7px}
+  .seldock .btn{padding:14px 18px}
+}
+
 /* ---------- sélection circuit ---------- */
 .circgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;width:100%}
 .circ{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;cursor:pointer;text-align:left;transition:transform .12s,border-color .12s;backdrop-filter:blur(8px)}
@@ -231,6 +252,8 @@ body.touch .itembox{display:none}
       <div class="teamcol"><div class="teamhead"><span class="flag fr"></span> Équipe de France</div><div class="chargrid" id="grid-fr"></div></div>
       <div class="teamcol"><div class="teamhead"><span class="flag es"></span> Selección Española</div><div class="chargrid" id="grid-es"></div></div>
     </div>
+  </div>
+  <div class="seldock">
     <div id="sel-stats">
       <div class="who"><span class="flag fr" id="sel-flag"></span><span id="sel-name">—</span></div>
       <div class="bars">
@@ -242,7 +265,7 @@ body.touch .itembox{display:none}
     </div>
     <div class="btnrow">
       <button class="btn ghost small" id="b-back-title"><span>← Retour</span></button>
-      <button class="btn" id="b-continue"><span>Continuer →</span></button>
+      <button class="btn" id="b-continue"><span>✓ Valider · <b id="continue-name">Mbappé</b></span></button>
     </div>
   </div>
 </div>
@@ -252,6 +275,8 @@ body.touch .itembox{display:none}
   <div class="scroller">
     <div class="banner">Choisis ton circuit</div>
     <div class="circgrid" id="circ-grid"></div>
+  </div>
+  <div class="seldock">
     <div class="btnrow">
       <button class="btn ghost small" id="b-back-select"><span>← Pilotes</span></button>
       <button class="btn" id="b-go"><span>🚦 C'est parti !</span></button>
@@ -1741,6 +1766,7 @@ function buildCharGrid(){
 function pick(c){APP.curSel=c;
  document.querySelectorAll('.char').forEach(el=>el.classList.toggle('sel',el.dataset.id===c.id));
  qs('#sel-name').textContent=c.name;
+ const cn=qs('#continue-name');if(cn)cn.textContent=c.name;
  qs('#sel-flag').className='flag '+(c.team==='FR'?'fr':'es');
  qs('#st-spd').style.transform='scaleX('+c.st.spd/5+')';
  qs('#st-acc').style.transform='scaleX('+c.st.acc/5+')';
