@@ -1,0 +1,39 @@
+{
+  "title": "Difference - Crocodile vs Alligator",
+  "voice": "fr-FR-RemyNeural",
+  "rate": "+10%",
+  "music": "assets/music/background.mp3",
+  "music_volume": 0.10,
+  "output": "output/difference-crocodile-alligator.mp4",
+  "format": "split_comparison",
+  "scenes": [
+    {
+      "layout": "split",
+      "image_left_query": "crocodile head close up",
+      "label_left": "CROCODILE",
+      "image_right_query": "alligator head close up",
+      "label_right": "ALLIGATOR",
+      "text": "Tu confonds sûrement le crocodile et l'alligator. Voici comment ne plus jamais te tromper."
+    },
+    {
+      "layout": "single",
+      "image_query": "crocodile snout v shaped narrow",
+      "text": "Regarde le museau. Le crocodile l'a fin et pointu, en forme de V."
+    },
+    {
+      "layout": "single",
+      "image_query": "alligator wide rounded snout",
+      "text": "L'alligator, lui, a un museau large et arrondi, en forme de U."
+    },
+    {
+      "layout": "single",
+      "image_query": "crocodile teeth mouth closed",
+      "text": "Autre indice : chez le crocodile, des dents du bas restent visibles gueule fermée. Chez l'alligator, elles disparaissent."
+    },
+    {
+      "layout": "single",
+      "image_query": "alligator swamp fresh water",
+      "text": "Et l'alligator préfère l'eau douce, quand le crocodile supporte l'eau salée. Seule la Floride abrite les deux. Abonne-toi pour ne plus rien confondre."
+    }
+  ]
+}

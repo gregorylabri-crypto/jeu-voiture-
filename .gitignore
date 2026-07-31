@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Generated video output
+output/*.mp4
+output/*.mov
+
+# Cached/downloaded scene images (regenerated at build time)
+.cache/
+assets/images/_cache/
+
+# User-supplied media that we don't want to commit (usually copyrighted)
+assets/music/*.mp3
+assets/music/*.wav
+
+# OS noise
+.DS_Store
+
+# keep empty dirs
+!**/.gitkeep
+.pytest_cache/

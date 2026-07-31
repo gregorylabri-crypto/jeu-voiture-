@@ -1,0 +1,5 @@
+# Runtime dependencies for the short-form video generator.
+edge-tts>=7.0.0        # Neural text-to-speech (Microsoft Edge voices, e.g. fr-FR-RemyNeural)
+Pillow>=10.0.0         # Image compositing (layouts, labels, captions, placeholder cards)
+requests>=2.28.0       # Image provider HTTP calls (Pexels / Unsplash)
+imageio-ffmpeg>=0.4.9  # Ships a static ffmpeg binary so no system install is required
