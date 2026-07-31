@@ -1,9 +1,15 @@
-"""Narration via edge-tts, with a graceful offline fallback.
+"""Narration with two neural backends and a graceful offline fallback.
 
-``synthesize`` tries to render real neural speech with edge-tts. edge-tts talks
-to Microsoft's speech endpoint over the network, so in locked-down environments
-(no egress, blocked host) it will fail; callers should fall back to
-``estimate_duration`` + a silent track so the video still builds with captions.
+Order of preference (the builder walks it):
+
+  1. **edge-tts**  - Microsoft Edge neural voices (the spec's ``voice``). Needs
+     network access to ``speech.platform.bing.com``.
+  2. **Piper**     - a small ONNX model that runs fully locally, for when the
+     edge-tts host is unreachable (offline / firewalled / egress policy). Fetch
+     a model with ``scripts/fetch_piper_voice.py``; auto-discovered under
+     ``models/piper`` or via ``$SHORTGEN_PIPER_MODEL``.
+  3. **estimate**  - no audio at all; the builder uses ``estimate_duration`` and
+     a silent track so captions still play in sync.
 
 Proxy handling: edge-tts uses aiohttp, which does *not* pick up ``HTTPS_PROXY``
 automatically, so we read it from the environment and pass it through
@@ -17,6 +23,8 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+from functools import lru_cache
+from pathlib import Path
 
 
 class TTSUnavailable(RuntimeError):
@@ -69,7 +77,10 @@ async def _synthesize_async(text: str, voice: str, rate: str, out_path: str) -> 
 
 
 def synthesize(text: str, voice: str, rate: str, out_path: str) -> None:
-    """Render ``text`` to an MP3 at ``out_path``. Raises TTSUnavailable on failure."""
+    """Render ``text`` to an MP3 at ``out_path`` via edge-tts.
+
+    Raises :class:`TTSUnavailable` on any failure (network/DNS/TLS/policy).
+    """
     try:
         asyncio.run(_synthesize_async(text, voice, rate, out_path))
     except TTSUnavailable:
@@ -82,3 +93,72 @@ def synthesize(text: str, voice: str, rate: str, out_path: str) -> None:
         except OSError:
             pass
         raise TTSUnavailable(f"edge-tts failed: {exc}") from exc
+
+
+# --------------------------------------------------------------------------- #
+# Piper (offline) backend
+# --------------------------------------------------------------------------- #
+
+_PIPER_ROOT = Path(__file__).resolve().parent.parent.parent  # repo root
+
+
+def find_piper_model() -> Path | None:
+    """Locate a Piper ``.onnx`` model (with a sibling ``.onnx.json``).
+
+    Checks ``$SHORTGEN_PIPER_MODEL`` then ``<repo>/models/piper``.
+    """
+    override = os.environ.get("SHORTGEN_PIPER_MODEL")
+    if override:
+        p = Path(override)
+        if p.is_file() and p.with_suffix(".onnx.json").is_file():
+            return p
+    search = _PIPER_ROOT / "models" / "piper"
+    if search.is_dir():
+        for onnx in sorted(search.glob("*.onnx")):
+            if onnx.with_suffix(".onnx.json").is_file():
+                return onnx
+    return None
+
+
+@lru_cache(maxsize=4)
+def _load_piper(model_path: str):
+    from piper import PiperVoice  # imported lazily; optional dependency
+
+    return PiperVoice.load(model_path, model_path + ".json")
+
+
+def piper_available() -> bool:
+    if find_piper_model() is None:
+        return False
+    try:
+        import piper  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+def synthesize_piper(text: str, out_path: str, rate: str = "+0%",
+                     model_path: str | None = None) -> None:
+    """Render ``text`` to a WAV at ``out_path`` using a local Piper model."""
+    model = model_path or (str(find_piper_model()) if find_piper_model() else None)
+    if model is None:
+        raise TTSUnavailable("no Piper model found (run scripts/fetch_piper_voice.py)")
+    try:
+        import wave
+
+        from piper import SynthesisConfig
+
+        voice = _load_piper(model)
+        # length_scale is inverse speed: a faster rate -> shorter samples.
+        syn = SynthesisConfig(length_scale=1.0 / _parse_rate(rate))
+        with wave.open(out_path, "wb") as wav:
+            voice.synthesize_wav(text, wav, syn_config=syn)
+    except TTSUnavailable:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        try:
+            if os.path.exists(out_path):
+                os.remove(out_path)
+        except OSError:
+            pass
+        raise TTSUnavailable(f"piper failed: {exc}") from exc

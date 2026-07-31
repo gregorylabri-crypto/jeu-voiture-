@@ -100,23 +100,32 @@ The run summary lists which queries fell back to placeholders.
 
 ---
 
-## Narration & the offline fallback
+## Narration — three tiers
 
-Narration uses **edge-tts** (Microsoft Edge neural voices). It needs network
-access to `speech.platform.bing.com`. edge-tts talks over aiohttp, which does
-not read `HTTPS_PROXY` on its own, so the TTS module reads it from the
-environment and passes it through; TLS trust honours the standard
-`SSL_CERT_FILE` / `REQUESTS_CA_BUNDLE` variables.
+The builder walks these in order and uses the first that works:
 
-If that host is unreachable (offline, firewalled, or blocked by an egress
-policy), the build **degrades gracefully**: each scene’s length is estimated
-from its word count and the `rate`, a silent track fills the clip, and the
-captions still carry the message. Use `--no-tts` to force this mode.
+1. **edge-tts** (default) — Microsoft Edge neural voices, i.e. the spec’s
+   `voice` (`fr-FR-RemyNeural`, `fr-FR-DeniseNeural`, …). Needs network access
+   to `speech.platform.bing.com`. edge-tts talks over aiohttp, which does not
+   read `HTTPS_PROXY` on its own, so the TTS module reads it from the
+   environment and passes it through; TLS trust honours the standard
+   `SSL_CERT_FILE` / `REQUESTS_CA_BUNDLE` variables.
+2. **Piper** (offline fallback) — a small ONNX voice that runs fully locally,
+   for when the edge-tts host is blocked. Fetch a French voice once:
+   ```bash
+   python scripts/fetch_piper_voice.py     # -> models/piper/fr_FR-siwis-medium.onnx
+   ```
+   It’s auto-discovered in `models/piper/` (or point `$SHORTGEN_PIPER_MODEL` at
+   a specific `.onnx`). `--no-piper` disables this tier.
+3. **Estimate** — no audio at all: each scene’s length is estimated from its
+   word count and the `rate`, a silent track fills the clip, and the captions
+   still carry the message. `--no-tts` forces this mode.
 
-> Heads-up: in sandboxes that block outbound traffic (e.g. locked-down CI),
-> both the TTS host and the stock-photo APIs are unreachable, so you’ll get the
-> placeholder-visuals + estimated-timing preview. Run it somewhere with network
-> access (and keys) for the fully-produced video.
+> Heads-up: in sandboxes that block outbound traffic (e.g. locked-down CI), the
+> edge-tts host **and** the stock-photo APIs are unreachable. Install a Piper
+> voice (GitHub-hosted mirrors, so it works where only GitHub is reachable) and
+> you still get real French narration — only the imagery falls back to
+> placeholders until you add a provider key or local photos.
 
 ---
 

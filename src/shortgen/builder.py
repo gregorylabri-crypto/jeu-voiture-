@@ -28,7 +28,8 @@ class BuildResult:
 class BuildOptions:
     output: Path | None = None
     motion: bool = True
-    use_tts: bool = True
+    use_tts: bool = True          # try edge-tts neural voices
+    use_piper: bool = True        # fall back to a local Piper model if present
     keep_temp: bool = False
     verbose: bool = True
 
@@ -78,11 +79,15 @@ def build(spec_path: str | Path, opts: BuildOptions | None = None) -> BuildResul
                              size=(spec.width, spec.height), verbose=opts.verbose)
 
     result = BuildResult(output=output, duration=0.0)
-    narration_neural = False
-    narration_estimated = False
+    used_edge = used_piper = used_estimate = False
+    edge_warned = False
+
+    piper_ready = opts.use_piper and opts.use_tts and tts.piper_available()
 
     _log(opts, f"Building '{spec.title}' -> {output}")
     _log(opts, f"  {len(spec.scenes)} scenes | {spec.width}x{spec.height} @ {spec.fps}fps")
+    if piper_ready:
+        _log(opts, f"  offline voice available: {tts.find_piper_model().name}")
 
     try:
         clip_paths: list[Path] = []
@@ -99,23 +104,38 @@ def build(spec_path: str | Path, opts: BuildOptions | None = None) -> BuildResul
 
             # ---- narration ----------------------------------------------
             scene_audio: Path | None = None
+            backend = None
             duration = tts.estimate_duration(scene.text, spec.rate)
             if opts.use_tts:
+                # 1) edge-tts neural voice (the spec's `voice`).
                 mp3 = audio / f"scene{scene.index}.mp3"
                 try:
                     tts.synthesize(scene.text, spec.voice, spec.rate, str(mp3))
-                    scene_audio = mp3
-                    probed = probe_duration(str(mp3))
-                    if probed:
-                        duration = round(probed + 0.35, 3)  # small tail pause
-                    narration_neural = True
-                    _log(opts, f"  scene {scene.index}: neural narration ({duration:.2f}s)")
+                    scene_audio, backend = mp3, "edge"
                 except tts.TTSUnavailable as exc:
-                    narration_estimated = True
-                    _log(opts, f"  scene {scene.index}: TTS unavailable ({exc}); "
-                               f"estimated {duration:.2f}s")
+                    if not edge_warned:
+                        _log(opts, f"  edge-tts unavailable ({exc})"
+                                   + ("; using offline Piper voice" if piper_ready
+                                      else "; using estimated timing"))
+                        edge_warned = True
+                # 2) offline Piper model.
+                if scene_audio is None and piper_ready:
+                    wav = audio / f"scene{scene.index}.wav"
+                    try:
+                        tts.synthesize_piper(scene.text, str(wav), spec.rate)
+                        scene_audio, backend = wav, "piper"
+                    except tts.TTSUnavailable as exc:
+                        _log(opts, f"  scene {scene.index}: piper failed ({exc})")
+
+            if scene_audio is not None:
+                probed = probe_duration(str(scene_audio))
+                if probed:
+                    duration = round(probed + 0.35, 3)  # small tail pause
+                used_edge = used_edge or backend == "edge"
+                used_piper = used_piper or backend == "piper"
+                _log(opts, f"  scene {scene.index}: {backend} narration ({duration:.2f}s)")
             else:
-                narration_estimated = True
+                used_estimate = True
 
             # ---- frame + clip -------------------------------------------
             png = frames / f"scene{scene.index}.png"
@@ -144,11 +164,14 @@ def build(spec_path: str | Path, opts: BuildOptions | None = None) -> BuildResul
 
         result.duration = probe_duration(str(output)) or sum(result.scene_durations)
         result.placeholders = list(resolver.placeholders)
-        result.narration = (
-            "neural" if narration_neural and not narration_estimated
-            else "mixed" if narration_neural
-            else "estimated"
-        )
+        parts = []
+        if used_edge:
+            parts.append("edge-tts")
+        if used_piper:
+            parts.append("piper (offline)")
+        if used_estimate:
+            parts.append("estimated")
+        result.narration = " + ".join(parts) if parts else "estimated"
         return result
     finally:
         if not opts.keep_temp:

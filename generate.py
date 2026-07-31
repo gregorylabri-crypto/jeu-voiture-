@@ -33,6 +33,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Disable the Ken Burns pan/zoom (static frames)")
     parser.add_argument("--no-tts", action="store_true",
                         help="Skip neural narration; use estimated timing + silent track")
+    parser.add_argument("--no-piper", action="store_true",
+                        help="Don't fall back to the local Piper voice when edge-tts is blocked")
     parser.add_argument("--keep-temp", action="store_true",
                         help="Keep the temporary working directory (for debugging)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Less logging")
@@ -42,6 +44,7 @@ def main(argv: list[str] | None = None) -> int:
         output=args.output,
         motion=not args.no_motion,
         use_tts=not args.no_tts,
+        use_piper=not args.no_piper,
         keep_temp=args.keep_temp,
         verbose=not args.quiet,
     )
